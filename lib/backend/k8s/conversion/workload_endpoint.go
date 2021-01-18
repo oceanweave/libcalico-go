@@ -27,6 +27,7 @@ type WorkloadEndpointConverter interface {
 	PodToWorkloadEndpoints(pod *kapiv1.Pod) ([]*model.KVPair, error)
 }
 
+// Changed in Netease. We use another Converter which build vethName in Netease-way
 func NewWorkloadEndpointConverter() WorkloadEndpointConverter {
-	return &defaultWorkloadEndpointConverter{}
+	return newSandboxWorkloadEndpointConverter()
 }

@@ -43,6 +43,8 @@ require (
 	k8s.io/apimachinery v0.17.2
 	k8s.io/client-go v0.17.2
 	k8s.io/code-generator v0.17.2
+	k8s.io/cri-api v0.17.2
+	k8s.io/kubernetes v0.17.2
 
 	// k8s.io/utils is not (tag) versioned
 	k8s.io/utils v0.0.0-20191114200735-6ca3b61696b6 // indirect

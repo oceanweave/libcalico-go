@@ -17,9 +17,16 @@
 package conversion
 
 import (
+	"os"
+	
 	kapiv1 "k8s.io/api/core/v1"
 
 	"github.com/projectcalico/libcalico-go/lib/backend/model"
+)
+
+const (
+	defaultConverter = "default"
+	neteaseConverter = "netease"
 )
 
 type WorkloadEndpointConverter interface {
@@ -27,6 +34,12 @@ type WorkloadEndpointConverter interface {
 	PodToWorkloadEndpoints(pod *kapiv1.Pod) ([]*model.KVPair, error)
 }
 
+// Changed: If in Netease, We use another Converter which naming veth in Netease-way
 func NewWorkloadEndpointConverter() WorkloadEndpointConverter {
+	rule := os.Getenv("FELIX_INTERFACENAMINGRULE")
+	if rule == neteaseConverter {
+		return newSandboxWorkloadEndpointConverter()
+	}
 	return &defaultWorkloadEndpointConverter{}
 }
+

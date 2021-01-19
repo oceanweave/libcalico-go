@@ -32,7 +32,7 @@ require (
 	go.uber.org/zap v1.13.0 // indirect
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20200324154536-ceff61240acf
-	google.golang.org/grpc v1.27.0 // indirect
+	google.golang.org/grpc v1.27.0
 	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
 	gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
@@ -42,6 +42,7 @@ require (
 	k8s.io/apimachinery v0.19.6
 	k8s.io/client-go v0.19.6
 	k8s.io/code-generator v0.19.6
+	k8s.io/cri-api v0.19.6
 )
 
 replace github.com/sirupsen/logrus => github.com/projectcalico/logrus v1.0.4-calico

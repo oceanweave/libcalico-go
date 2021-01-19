@@ -33,8 +33,6 @@ import (
 	"github.com/projectcalico/libcalico-go/lib/numorstring"
 )
 
-const linuxInterfaceMaxSize = 15
-
 type defaultWorkloadEndpointConverter struct{}
 
 // VethNameForWorkload returns a deterministic veth name
@@ -54,8 +52,7 @@ func (wc defaultWorkloadEndpointConverter) VethNameForWorkload(namespace, podnam
 		prefix = splits[0]
 	}
 	log.WithField("prefix", prefix).Debugf("Using prefix to create a WorkloadEndpoint veth name")
-	surfixLen := linuxInterfaceMaxSize-len(prefix)
-	return fmt.Sprintf("%s%s", prefix, hex.EncodeToString(h.Sum(nil))[:surfixLen])
+	return fmt.Sprintf("%s%s", prefix, hex.EncodeToString(h.Sum(nil))[:11])
 }
 
 func (wc defaultWorkloadEndpointConverter) PodToWorkloadEndpoints(pod *kapiv1.Pod) ([]*model.KVPair, error) {

@@ -39,14 +39,14 @@ const (
 	linuxInterfaceNameMaxSize = 15
 
 	runtimeRequestTimeout = time.Minute * 2
-	runtimeEndpoint		  = "unix:///var/run/dockershim.sock"
+	runtimeEndpoint       = "unix:///var/run/dockershim.sock"
 
-	KubernetesPodNameLabel       = "io.kubernetes.pod.name"
-	KubernetesPodNamespaceLabel  = "io.kubernetes.pod.namespace"
+	KubernetesPodNameLabel      = "io.kubernetes.pod.name"
+	KubernetesPodNamespaceLabel = "io.kubernetes.pod.namespace"
 )
 
-type sandboxWorkloadEndpointConverter struct{
-	kubeletapi.RuntimeService
+type sandboxWorkloadEndpointConverter struct {
+	kubeletapi.RuntimeService // dfy: 封装此接口作用，是为了获取容器相关信息
 }
 
 func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
@@ -64,8 +64,9 @@ func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
 // for the given Kubernetes workload (WEP) name and namespace.
 func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podname string) string {
 	filter := &kruntimeapi.PodSandboxFilter{
-		LabelSelector: map[string]string{KubernetesPodNamespaceLabel: namespace, KubernetesPodNameLabel: podname },
+		LabelSelector: map[string]string{KubernetesPodNamespaceLabel: namespace, KubernetesPodNameLabel: podname},
 	}
+	// dfy: 获取指定 ns 下指定 Pod 对应的 所有容器？
 	podSandboxList, err := wc.ListPodSandbox(filter)
 	if err != nil {
 		log.WithField("label", filter.String()).Errorf("list podsandbox by filter failed")
@@ -75,7 +76,9 @@ func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podnam
 		log.WithField("label", filter.String()).Errorf("list podsandbox by filter empty")
 		return ""
 	}
+	// dfy: 获取该 Pod 的第一个容器 ID
 	sandboxID := podSandboxList[0].Id
+	// dfy: 获取环境变量，判断是否有指定 veth pair 前缀，若没有就默认采用 cali 前缀
 	prefix := os.Getenv("FELIX_INTERFACEPREFIX")
 	if prefix == "" {
 		// Prefix is not set. Default to "cali"
@@ -86,6 +89,7 @@ func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podnam
 		prefix = splits[0]
 	}
 	log.WithField("prefix", prefix).Debugf("Using prefix to create a WorkloadEndpoint veth name")
+	// dfy: 此处指定了 veth-pair 前缀为 15 个字符长度
 	result := fmt.Sprintf("%s%s", prefix, sandboxID[:linuxInterfaceNameMaxSize-len(prefix)])
 	log.WithField("vethname", result).Debugf("Using WorkloadEndpoint veth name")
 	return result
@@ -151,6 +155,7 @@ func (wc sandboxWorkloadEndpointConverter) podToDefaultWorkloadEndpoint(pod *kap
 
 	// Generate the interface name based on workload.  This must match
 	// the host-side veth configured by the CNI plugin.
+	// dfy: 此处要与建立的 host 端 veth-pair 名称对应
 	interfaceName := wc.VethNameForWorkload(pod.Namespace, pod.Name)
 	if interfaceName == "" {
 		return nil, fmt.Errorf("convert an empty interface name from pod: %s/%s", pod.Namespace, pod.Name)

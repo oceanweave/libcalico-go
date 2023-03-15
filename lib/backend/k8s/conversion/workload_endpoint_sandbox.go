@@ -36,13 +36,14 @@ import (
 )
 
 const (
-	linuxInterfaceNameMaxSize = 15
+	linuxInterfaceNameMaxSize = 11
 
 	runtimeRequestTimeout = time.Minute * 2
 	runtimeEndpoint       = "unix:///var/run/dockershim.sock"
 
 	KubernetesPodNameLabel      = "io.kubernetes.pod.name"
 	KubernetesPodNamespaceLabel = "io.kubernetes.pod.namespace"
+	LabelKeySaiShangIPAMIPSet   = "alcor.io/saishang-ipam.ipset"
 )
 
 type sandboxWorkloadEndpointConverter struct {
@@ -77,14 +78,20 @@ func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podnam
 	}
 	sandboxID := podSandboxList[0].Id
 	prefix := os.Getenv("FELIX_INTERFACEPREFIX")
-	if prefix == "" {
-		// Prefix is not set. Default to "cali"
-		prefix = "cali"
+	if _, hasIPset := podSandboxList[0].Labels[LabelKeySaiShangIPAMIPSet]; hasIPset {
+		prefix = "isi"
 	} else {
-		// Prefix is set - use the first value in the list.
-		splits := strings.Split(prefix, ",")
-		prefix = splits[0]
+		prefix = "cali"
 	}
+	//prefix := os.Getenv("FELIX_INTERFACEPREFIX")
+	//if prefix == "" {
+	//	// Prefix is not set. Default to "cali"
+	//	prefix = "cali"
+	//} else {
+	//	// Prefix is set - use the first value in the list.
+	//	splits := strings.Split(prefix, ",")
+	//	prefix = splits[0]
+	//}
 	log.WithField("prefix", prefix).Debugf("Using prefix to create a WorkloadEndpoint veth name")
 	result := fmt.Sprintf("%s%s", prefix, sandboxID[:linuxInterfaceNameMaxSize-len(prefix)])
 	log.WithField("vethname", result).Debugf("Using WorkloadEndpoint veth name")

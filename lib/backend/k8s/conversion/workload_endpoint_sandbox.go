@@ -15,31 +15,30 @@
 package conversion
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-	kapiv1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubeletapi "k8s.io/cri-api/pkg/apis"
-	kruntimeapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
-	kubeletremote "k8s.io/kubernetes/pkg/kubelet/remote"
-
 	apiv3 "github.com/projectcalico/libcalico-go/lib/apis/v3"
 	"github.com/projectcalico/libcalico-go/lib/backend/model"
 	"github.com/projectcalico/libcalico-go/lib/names"
 	cnet "github.com/projectcalico/libcalico-go/lib/net"
 	"github.com/projectcalico/libcalico-go/lib/numorstring"
+	log "github.com/sirupsen/logrus"
+	kapiv1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kruntimeapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
 const (
 	linuxInterfaceNameMaxSize = 11
 
-	runtimeRequestTimeout = time.Minute * 2
-	runtimeEndpoint       = "unix:///var/run/dockershim.sock"
+	runtimeRequestTimeout  = time.Minute * 2
+	defaultRuntimeEndpoint = "unix:///var/run/dockershim.sock"
 
 	KubernetesPodNameLabel      = "io.kubernetes.pod.name"
 	KubernetesPodNamespaceLabel = "io.kubernetes.pod.namespace"
@@ -47,13 +46,19 @@ const (
 )
 
 type sandboxWorkloadEndpointConverter struct {
-	kubeletapi.RuntimeService
+	kruntimeapi.RuntimeServiceClient
 }
 
 func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
 	c := &sandboxWorkloadEndpointConverter{}
 	var err error
-	c.RuntimeService, err = kubeletremote.NewRemoteRuntimeService(runtimeEndpoint, runtimeRequestTimeout)
+
+	runtimeEndpoint := os.Getenv("FELIX_RUNTIMEENDPOINT")
+	if runtimeEndpoint == "" {
+		runtimeEndpoint = defaultRuntimeEndpoint
+	}
+
+	c.RuntimeServiceClient, err = newEndpointService(runtimeEndpoint, runtimeRequestTimeout)
 	if err != nil {
 		log.WithError(err).Panicf("initial sandboxWorkloadEndpointConverter failed")
 		return nil
@@ -64,24 +69,41 @@ func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
 // VethNameForWorkload returns a deterministic veth name
 // for the given Kubernetes workload (WEP) name and namespace.
 func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podname string) string {
-	filter := &kruntimeapi.PodSandboxFilter{
-		LabelSelector: map[string]string{KubernetesPodNamespaceLabel: namespace, KubernetesPodNameLabel: podname},
+	listReq := &kruntimeapi.ListPodSandboxRequest{
+		Filter: &kruntimeapi.PodSandboxFilter{
+			LabelSelector: map[string]string{KubernetesPodNamespaceLabel: namespace, KubernetesPodNameLabel: podname},
+		},
 	}
-	podSandboxList, err := wc.ListPodSandbox(filter)
+	ctx, cancel := getContextWithTimeout(runtimeRequestTimeout)
+	defer cancel()
+	podSandboxList, err := wc.ListPodSandbox(ctx, listReq)
 	if err != nil {
-		log.WithField("label", filter.String()).Errorf("list podsandbox by filter failed")
+		log.WithField("label", listReq.Filter.String()).Errorf("list podsandbox by filter failed")
 		return ""
 	}
-	if len(podSandboxList) == 0 {
-		log.WithField("label", filter.String()).Errorf("list podsandbox by filter empty")
+	if len(podSandboxList.Items) == 0 {
+		log.WithField("label", listReq.Filter.String()).Errorf("list podsandbox by filter empty")
 		return ""
 	}
-	sandboxID := podSandboxList[0].Id
+	sandboxID := podSandboxList.Items[0].Id
 	prefix := os.Getenv("FELIX_INTERFACEPREFIX")
-	if _, hasIPset := podSandboxList[0].Labels[LabelKeySaiShangIPAMIPSet]; hasIPset {
+	if _, hasIPset := podSandboxList.Items[0].Labels[LabelKeySaiShangIPAMIPSet]; hasIPset {
 		prefix = "isi"
 	} else {
-		prefix = "cali"
+		// prefix = "cali"
+		h := sha1.New()
+		h.Write([]byte(fmt.Sprintf("%s.%s", namespace, podname)))
+		prefix = os.Getenv("FELIX_INTERFACEPREFIX")
+		if prefix == "" {
+			// Prefix is not set. Default to "cali"
+			prefix = "cali"
+		} else {
+			// Prefix is set - use the first value in the list.
+			splits := strings.Split(prefix, ",")
+			prefix = splits[0]
+		}
+		log.WithField("prefix", prefix).Debugf("Using prefix to create a WorkloadEndpoint veth name")
+		return fmt.Sprintf("%s%s", prefix, hex.EncodeToString(h.Sum(nil))[:11])
 	}
 	//prefix := os.Getenv("FELIX_INTERFACEPREFIX")
 	//if prefix == "" {

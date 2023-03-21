@@ -15,6 +15,7 @@
 package conversion
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
@@ -53,6 +54,11 @@ func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
 	c := &sandboxWorkloadEndpointConverter{}
 	var err error
 
+	filePath := "/var/log/dfy-log.txt"
+	file, _ := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	writer := bufio.NewWriter(file)
+	defer file.Close()
+
 	runtimeEndpoint := os.Getenv("FELIX_RUNTIMEENDPOINT")
 	if runtimeEndpoint == "" {
 		runtimeEndpoint = defaultRuntimeEndpoint
@@ -61,6 +67,9 @@ func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
 	c.RuntimeServiceClient, err = newEndpointService(runtimeEndpoint, runtimeRequestTimeout)
 	if err != nil {
 		log.WithError(err).Panicf("initial sandboxWorkloadEndpointConverter failed")
+		// dfy-log
+		writer.WriteString("create RuntimeServiceClient fail. ")
+		writer.Flush()
 		return nil
 	}
 	return c
@@ -69,6 +78,11 @@ func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
 // VethNameForWorkload returns a deterministic veth name
 // for the given Kubernetes workload (WEP) name and namespace.
 func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podname string) string {
+	filePath := "/var/log/dfy-log.txt"
+	file, _ := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	writer := bufio.NewWriter(file)
+	defer file.Close()
+
 	listReq := &kruntimeapi.ListPodSandboxRequest{
 		Filter: &kruntimeapi.PodSandboxFilter{
 			LabelSelector: map[string]string{KubernetesPodNamespaceLabel: namespace, KubernetesPodNameLabel: podname},
@@ -86,9 +100,18 @@ func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podnam
 		return ""
 	}
 	sandboxID := podSandboxList.Items[0].Id
+	// dfy-log
+	str := fmt.Sprintf("%s%s\n", "sandboxID:", sandboxID)
+	writer.WriteString(str)
+	str = fmt.Sprintf("%s%s\n", "judge whether has ipsetLable:", podSandboxList.Items[0].Labels[LabelKeySaiShangIPAMIPSet])
+	writer.WriteString(str)
+
 	prefix := os.Getenv("FELIX_INTERFACEPREFIX")
 	if _, hasIPset := podSandboxList.Items[0].Labels[LabelKeySaiShangIPAMIPSet]; hasIPset {
 		prefix = "isi"
+		// dfy-log
+		str = fmt.Sprintf("%s%s\n", "current prefix:", prefix)
+		writer.WriteString(str)
 	} else {
 		// prefix = "cali"
 		h := sha1.New()
@@ -103,6 +126,11 @@ func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podnam
 			prefix = splits[0]
 		}
 		log.WithField("prefix", prefix).Debugf("Using prefix to create a WorkloadEndpoint veth name")
+		// dfy-log
+		str = fmt.Sprintf("%s%s\n", "current prefix:", prefix)
+		writer.WriteString(str)
+		writer.Flush()
+
 		return fmt.Sprintf("%s%s", prefix, hex.EncodeToString(h.Sum(nil))[:11])
 	}
 	//prefix := os.Getenv("FELIX_INTERFACEPREFIX")
@@ -117,6 +145,11 @@ func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podnam
 	log.WithField("prefix", prefix).Debugf("Using prefix to create a WorkloadEndpoint veth name")
 	result := fmt.Sprintf("%s%s", prefix, sandboxID[:linuxInterfaceNameMaxSize-len(prefix)])
 	log.WithField("vethname", result).Debugf("Using WorkloadEndpoint veth name")
+	// dfy-log
+	str = fmt.Sprintf("%s%s\n", "current prefix:", prefix)
+	writer.WriteString(str)
+	writer.Flush()
+
 	return result
 }
 

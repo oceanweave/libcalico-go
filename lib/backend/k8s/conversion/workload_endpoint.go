@@ -18,8 +18,14 @@ package conversion
 
 import (
 	kapiv1 "k8s.io/api/core/v1"
+	"os"
 
 	"github.com/projectcalico/libcalico-go/lib/backend/model"
+)
+
+const (
+	defaultConverter  = "default"
+	saishangConverter = "saishang"
 )
 
 type WorkloadEndpointConverter interface {
@@ -28,5 +34,9 @@ type WorkloadEndpointConverter interface {
 }
 
 func NewWorkloadEndpointConverter() WorkloadEndpointConverter {
-	return newSandboxWorkloadEndpointConverter()
+	rule := os.Getenv("FELIX_INTERFACENAMINGRULE")
+	if rule == saishangConverter {
+		return newSandboxWorkloadEndpointConverter()
+	}
+	return &defaultWorkloadEndpointConverter{}
 }

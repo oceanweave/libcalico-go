@@ -16,8 +16,6 @@ package conversion
 
 import (
 	"bufio"
-	"crypto/sha1"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -54,11 +52,6 @@ func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
 	c := &sandboxWorkloadEndpointConverter{}
 	var err error
 
-	filePath := "/var/log/dfy-log.txt"
-	file, _ := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
-	writer := bufio.NewWriter(file)
-	defer file.Close()
-
 	runtimeEndpoint := os.Getenv("FELIX_RUNTIMEENDPOINT")
 	if runtimeEndpoint == "" {
 		runtimeEndpoint = defaultRuntimeEndpoint
@@ -68,10 +61,15 @@ func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
 	if err != nil {
 		log.WithError(err).Panicf("initial sandboxWorkloadEndpointConverter failed")
 		// dfy-log
+		filePath := "/var/log/dfy-err-runtime.txt"
+		file, _ := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
+		writer := bufio.NewWriter(file)
+		defer file.Close()
 		writer.WriteString("create RuntimeServiceClient fail. ")
 		writer.Flush()
 		return nil
 	}
+	log.Warnf("Connect Runtime Success!")
 	return c
 }
 
@@ -79,8 +77,10 @@ func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
 // for the given Kubernetes workload (WEP) name and namespace.
 func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podname string) string {
 	filePath := "/var/log/dfy-log.txt"
-	file, _ := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	file, _ := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
 	writer := bufio.NewWriter(file)
+	writer.WriteString("starting ...... ")
+	writer.Flush()
 	defer file.Close()
 
 	listReq := &kruntimeapi.ListPodSandboxRequest{
@@ -105,51 +105,23 @@ func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podnam
 	writer.WriteString(str)
 	str = fmt.Sprintf("%s%s\n", "judge whether has ipsetLable:", podSandboxList.Items[0].Labels[LabelKeySaiShangIPAMIPSet])
 	writer.WriteString(str)
-
-	prefix := os.Getenv("FELIX_INTERFACEPREFIX")
-	if _, hasIPset := podSandboxList.Items[0].Labels[LabelKeySaiShangIPAMIPSet]; hasIPset {
-		prefix = "isi"
-		// dfy-log
-		str = fmt.Sprintf("%s%s\n", "current prefix:", prefix)
-		writer.WriteString(str)
-	} else {
-		// prefix = "cali"
-		h := sha1.New()
-		h.Write([]byte(fmt.Sprintf("%s.%s", namespace, podname)))
-		prefix = os.Getenv("FELIX_INTERFACEPREFIX")
-		if prefix == "" {
-			// Prefix is not set. Default to "cali"
-			prefix = "cali"
-		} else {
-			// Prefix is set - use the first value in the list.
-			splits := strings.Split(prefix, ",")
-			prefix = splits[0]
-		}
-		log.WithField("prefix", prefix).Debugf("Using prefix to create a WorkloadEndpoint veth name")
-		// dfy-log
-		str = fmt.Sprintf("%s%s\n", "current prefix:", prefix)
-		writer.WriteString(str)
-		writer.Flush()
-
-		return fmt.Sprintf("%s%s", prefix, hex.EncodeToString(h.Sum(nil))[:11])
-	}
-	//prefix := os.Getenv("FELIX_INTERFACEPREFIX")
-	//if prefix == "" {
-	//	// Prefix is not set. Default to "cali"
-	//	prefix = "cali"
-	//} else {
-	//	// Prefix is set - use the first value in the list.
-	//	splits := strings.Split(prefix, ",")
-	//	prefix = splits[0]
-	//}
-	log.WithField("prefix", prefix).Debugf("Using prefix to create a WorkloadEndpoint veth name")
-	result := fmt.Sprintf("%s%s", prefix, sandboxID[:linuxInterfaceNameMaxSize-len(prefix)])
-	log.WithField("vethname", result).Debugf("Using WorkloadEndpoint veth name")
-	// dfy-log
-	str = fmt.Sprintf("%s%s\n", "current prefix:", prefix)
-	writer.WriteString(str)
 	writer.Flush()
 
+	prefix := os.Getenv("FELIX_INTERFACEPREFIX")
+	if prefix == "" {
+		// Prefix is not set. Default to "cali"
+		prefix = "cali"
+	} else {
+		// Prefix is set - use the first value in the list.
+		splits := strings.Split(prefix, ",")
+		prefix = splits[0]
+	}
+	log.WithField("prefix", prefix).Warnf("Using prefix to create a WorkloadEndpoint veth name")
+	result := fmt.Sprintf("%s%s", prefix, sandboxID[:linuxInterfaceNameMaxSize-len(prefix)])
+	log.WithField("vethname", result).Warnf("Using WorkloadEndpoint veth name")
+	str = fmt.Sprintf("%s%s\n", "current prefix", prefix)
+	writer.WriteString(str)
+	writer.Flush()
 	return result
 }
 

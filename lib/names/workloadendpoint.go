@@ -17,6 +17,7 @@ package names
 import (
 	"errors"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"reflect"
 	"strings"
 
@@ -90,6 +91,7 @@ func (ids WorkloadEndpointIdentifiers) NameMatches(name string) (bool, error) {
 // and terminate with a dash.
 func (ids WorkloadEndpointIdentifiers) CalculateWorkloadEndpointName(allowPrefix bool) (string, error) {
 	req, err := ids.getSegments()
+	log.WithField("req:", req).Warnf("dfy-func getSegments")
 	if err != nil {
 		return "", err
 	}
@@ -121,6 +123,7 @@ func (ids WorkloadEndpointIdentifiers) CalculateWorkloadEndpointName(allowPrefix
 		parts = append(parts, part)
 	}
 
+	log.Warnf("dfy-func escapeDashes ending")
 	// We have extracted all of the required segments, join the segments with a "-" and
 	// return that as the name.
 	return strings.Join(parts, "-"), nil

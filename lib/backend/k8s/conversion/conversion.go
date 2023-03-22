@@ -201,6 +201,7 @@ func getPodIPs(pod *kapiv1.Pod) ([]*cnet.IPNet, error) {
 		log.Debug("Pod has no IP")
 		return nil, nil
 	}
+	log.WithField("PodIP:", podIPs).Warnf("dfy-func getPodIP")
 	var podIPNets []*cnet.IPNet
 	for _, ip := range podIPs {
 		_, ipNet, err := cnet.ParseCIDROrIP(ip)

@@ -18,6 +18,7 @@ package conversion
 
 import (
 	"github.com/projectcalico/libcalico-go/lib/backend/model"
+	log "github.com/sirupsen/logrus"
 	kapiv1 "k8s.io/api/core/v1"
 )
 
@@ -32,5 +33,6 @@ type WorkloadEndpointConverter interface {
 }
 
 func NewWorkloadEndpointConverter() WorkloadEndpointConverter {
+	log.Warnf("dfy-func NewWorkloadEndpointConverter --> newSandboxWorkloadEndpointConverter")
 	return newSandboxWorkloadEndpointConverter()
 }

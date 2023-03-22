@@ -147,6 +147,7 @@ func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podnam
 }
 
 func (wc sandboxWorkloadEndpointConverter) PodToWorkloadEndpoints(pod *kapiv1.Pod) ([]*model.KVPair, error) {
+	log.Warnf("dfy-func PodToWorkloadEndpoints starting --> podToDefaultWorkloadEndpoint")
 	wep, err := wc.podToDefaultWorkloadEndpoint(pod)
 	if err != nil {
 		return nil, err
@@ -160,7 +161,9 @@ func (wc sandboxWorkloadEndpointConverter) PodToWorkloadEndpoints(pod *kapiv1.Po
 // PodToWorkloadEndpoint requires a Pods Name and Node Name to be populated. It will
 // fail to convert from a Pod to WorkloadEndpoint otherwise.
 func (wc sandboxWorkloadEndpointConverter) podToDefaultWorkloadEndpoint(pod *kapiv1.Pod) (*model.KVPair, error) {
+	log.Warnf("dfy-func podToDefaultWorkloadEndpoint starting -???-> VethNameForWorkload")
 	log.WithField("pod", pod).Debug("Converting pod to WorkloadEndpoint")
+	log.Warnf("dfy-func Converting pod to WorkloadEndpoint")
 	// Get all the profiles that apply
 	var profiles []string
 
@@ -178,17 +181,22 @@ func (wc sandboxWorkloadEndpointConverter) podToDefaultWorkloadEndpoint(pod *kap
 		Endpoint:     "eth0",
 		Pod:          pod.Name,
 	}
+	log.Warnf("dfy-func CalculateWorkloadEndpointName")
 	wepName, err := wepids.CalculateWorkloadEndpointName(false)
+	log.WithField("err:", err).Warnf("dfy-func CalculateWorkloadEndpointName")
 	if err != nil {
 		return nil, err
 	}
 
+	log.Warnf("dfy-func getPodIPs")
 	podIPNets, err := getPodIPs(pod)
+	log.WithField("err:", err).Warnf("dfy-func getPodIPs")
 	if err != nil {
 		// IP address was present but malformed in some way, handle as an explicit failure.
 		return nil, err
 	}
 
+	log.Warnf("dfy-func IsFinished Pod")
 	if IsFinished(pod) {
 		// Pod is finished but not yet deleted.  In this state the IP will have been freed and returned to the pool
 		// so we need to make sure we don't let the caller believe it still belongs to this endpoint.
@@ -198,18 +206,21 @@ func (wc sandboxWorkloadEndpointConverter) podToDefaultWorkloadEndpoint(pod *kap
 		log.Debug("Pod is in a 'finished' state so no longer owns its IP(s).")
 		podIPNets = nil
 	}
+	log.Warnf("dfy-func IsFinished Pod ending")
 
 	ipNets := []string{}
 	for _, ipNet := range podIPNets {
 		ipNets = append(ipNets, ipNet.String())
 	}
 
+	log.Warnf("dfy-func VethNameForWorkload starting")
 	// Generate the interface name based on workload.  This must match
 	// the host-side veth configured by the CNI plugin.
 	interfaceName := wc.VethNameForWorkload(pod.Namespace, pod.Name)
 	if interfaceName == "" {
 		return nil, fmt.Errorf("convert an empty interface name from pod: %s/%s", pod.Namespace, pod.Name)
 	}
+	log.Warnf("dfy-func VethNameForWorkload ending")
 
 	// Build the labels map.  Start with the pod labels, and append two additional labels for
 	// namespace and orchestrator matches.

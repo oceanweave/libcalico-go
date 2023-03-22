@@ -17,8 +17,6 @@
 package conversion
 
 import (
-	"os"
-	
 	kapiv1 "k8s.io/api/core/v1"
 
 	"github.com/projectcalico/libcalico-go/lib/backend/model"
@@ -36,10 +34,5 @@ type WorkloadEndpointConverter interface {
 
 // Changed: If in Netease, We use another Converter which naming veth in Netease-way
 func NewWorkloadEndpointConverter() WorkloadEndpointConverter {
-	rule := os.Getenv("FELIX_INTERFACENAMINGRULE")
-	if rule == neteaseConverter {
-		return newSandboxWorkloadEndpointConverter()
-	}
-	return &defaultWorkloadEndpointConverter{}
+	return newSandboxWorkloadEndpointConverter()
 }
-

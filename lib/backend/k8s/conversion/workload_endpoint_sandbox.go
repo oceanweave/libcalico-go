@@ -15,6 +15,9 @@
 package conversion
 
 import (
+	"bufio"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -34,7 +37,7 @@ import (
 )
 
 const (
-	linuxInterfaceNameMaxSize = 15
+	linuxInterfaceNameMaxSize = 11
 	maxLenOfPrefix            = 5
 
 	runtimeRequestTimeout  = time.Minute * 2
@@ -42,6 +45,7 @@ const (
 
 	KubernetesPodNameLabel      = "io.kubernetes.pod.name"
 	KubernetesPodNamespaceLabel = "io.kubernetes.pod.namespace"
+	LabelKeySaiShangIPAMIPSet   = "alcor.io/saishang-ipam.ipset"
 )
 
 type sandboxWorkloadEndpointConverter struct {
@@ -49,6 +53,15 @@ type sandboxWorkloadEndpointConverter struct {
 }
 
 func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
+	// dfy: 日志排错
+	log.Warnf("This field call dfy-func newSandboxWorkloadEndpointConverter")
+	filePath := "/var/log/dfy-error-log.txt"
+	file, _ := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
+	writer := bufio.NewWriter(file)
+	writer.WriteString("starting newSandboxWorkloadEndpointConverter ...... ")
+	writer.Flush()
+	defer file.Close()
+
 	c := &sandboxWorkloadEndpointConverter{}
 	var err error
 
@@ -62,12 +75,26 @@ func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
 		log.WithError(err).Panicf("initial sandboxWorkloadEndpointConverter failed")
 		return nil
 	}
+	// dfy: 日志排错
+	log.Warnf("This field call dfy-func newSandboxWorkloadEndpointConverter Ending")
+	writer.WriteString("ending newSandboxWorkloadEndpointConverter ...... ")
+	writer.Flush()
+
 	return c
 }
 
 // VethNameForWorkload returns a deterministic veth name
 // for the given Kubernetes workload (WEP) name and namespace.
 func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podname string) string {
+	// dfy: 日志排错
+	log.Warnf("This field call dfy-func VethNameForWorkload")
+	filePath := "/var/log/dfy-log.txt"
+	file, _ := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
+	writer := bufio.NewWriter(file)
+	writer.WriteString("starting VethNameForWorkload ...... ")
+	writer.Flush()
+	defer file.Close()
+
 	listReq := &kruntimeapi.ListPodSandboxRequest{
 		Filter: &kruntimeapi.PodSandboxFilter{
 			LabelSelector: map[string]string{KubernetesPodNamespaceLabel: namespace, KubernetesPodNameLabel: podname},
@@ -85,18 +112,51 @@ func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podnam
 		return ""
 	}
 	sandboxID := podSandboxList.Items[0].Id
+
+	// dfy-log
+	str := fmt.Sprintf("%s%s\n", "sandboxID:", sandboxID)
+	writer.WriteString(str)
+	str = fmt.Sprintf("%s%s\n", "judge whether has ipsetLable:", podSandboxList.Items[0].Labels[LabelKeySaiShangIPAMIPSet])
+	writer.WriteString(str)
+	writer.Flush()
+
 	prefix := os.Getenv("FELIX_INTERFACEPREFIX")
-	if prefix == "" {
-		// Prefix is not set. Default to "cali"
-		prefix = "cali"
+	if podSandboxList.Items[0].Labels[LabelKeySaiShangIPAMIPSet] != "" {
+		// dfy: saishang 逻辑
+		prefix = "isi"
 	} else {
-		// Prefix is set - use the first value in the list.
-		splits := strings.Split(prefix, ",")
-		prefix = splits[0]
+		// dfy: 原始 calico 逻辑
+		// A SHA1 is always 20 bytes long, and so is sufficient for generating the
+		// veth name and mac addr.
+		h := sha1.New()
+		h.Write([]byte(fmt.Sprintf("%s.%s", namespace, podname)))
+		prefix := os.Getenv("FELIX_INTERFACEPREFIX")
+		if prefix == "" {
+			// Prefix is not set. Default to "cali"
+			prefix = "cali"
+		} else {
+			// Prefix is set - use the first value in the list.
+			splits := strings.Split(prefix, ",")
+			prefix = splits[0]
+		}
+		log.WithField("prefix", prefix).Warnf("Using prefix to create a WorkloadEndpoint veth name")
+		// dfy: 日志排错
+		log.Warnf("This field call dfy-func VethNameForWorkload cali-Ending")
+		str = fmt.Sprintf("%s%s\n", "current prefix: ", prefix)
+		writer.WriteString(str)
+		writer.Flush()
+
+		return fmt.Sprintf("%s%s", prefix, hex.EncodeToString(h.Sum(nil))[:11])
 	}
-	log.WithField("prefix", prefix).Debugf("Using prefix to create a WorkloadEndpoint veth name")
+	log.WithField("prefix", prefix).Warnf("Using prefix to create a WorkloadEndpoint veth name")
 	result := fmt.Sprintf("%s%s", prefix, sandboxID[:linuxInterfaceNameMaxSize-len(prefix)])
-	log.WithField("vethname", result).Debugf("Using WorkloadEndpoint veth name")
+	log.WithField("vethname", result).Warnf("Using WorkloadEndpoint veth name")
+	// dfy: 日志排错
+	log.Warnf("This field call dfy-func VethNameForWorkload isi-Ending")
+	str = fmt.Sprintf("%s%s\n", "current prefix: ", prefix)
+	writer.WriteString(str)
+	writer.Flush()
+
 	return result
 }
 
@@ -289,4 +349,3 @@ func (wc sandboxWorkloadEndpointConverter) podToDefaultWorkloadEndpoint(pod *kap
 	}
 	return &kvp, nil
 }
-

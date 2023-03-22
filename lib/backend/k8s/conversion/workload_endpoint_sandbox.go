@@ -1,40 +1,30 @@
-// Copyright (c) 2016-2020 Tigera, Inc. All rights reserved.
-
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package conversion
 
 import (
 	"bufio"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+	kapiv1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kruntimeapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+
 	apiv3 "github.com/projectcalico/libcalico-go/lib/apis/v3"
 	"github.com/projectcalico/libcalico-go/lib/backend/model"
 	"github.com/projectcalico/libcalico-go/lib/names"
 	cnet "github.com/projectcalico/libcalico-go/lib/net"
 	"github.com/projectcalico/libcalico-go/lib/numorstring"
-	log "github.com/sirupsen/logrus"
-	kapiv1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kruntimeapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
 const (
 	linuxInterfaceNameMaxSize = 11
+	maxLenOfPrefix            = 5
 
 	runtimeRequestTimeout  = time.Minute * 2
 	defaultRuntimeEndpoint = "unix:///var/run/dockershim.sock"
@@ -49,6 +39,15 @@ type sandboxWorkloadEndpointConverter struct {
 }
 
 func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
+	// dfy: 日志排错
+	log.Warnf("This field call dfy-func newSandboxWorkloadEndpointConverter")
+	filePath := "/var/log/dfy-error-log.txt"
+	file, _ := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
+	writer := bufio.NewWriter(file)
+	writer.WriteString("starting newSandboxWorkloadEndpointConverter ...... ")
+	writer.Flush()
+	defer file.Close()
+
 	c := &sandboxWorkloadEndpointConverter{}
 	var err error
 
@@ -60,26 +59,25 @@ func newSandboxWorkloadEndpointConverter() *sandboxWorkloadEndpointConverter {
 	c.RuntimeServiceClient, err = newEndpointService(runtimeEndpoint, runtimeRequestTimeout)
 	if err != nil {
 		log.WithError(err).Panicf("initial sandboxWorkloadEndpointConverter failed")
-		// dfy-log
-		filePath := "/var/log/dfy-err-runtime.txt"
-		file, _ := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
-		writer := bufio.NewWriter(file)
-		defer file.Close()
-		writer.WriteString("create RuntimeServiceClient fail. ")
-		writer.Flush()
 		return nil
 	}
-	log.Warnf("Connect Runtime Success!")
+	// dfy: 日志排错
+	log.Warnf("This field call dfy-func newSandboxWorkloadEndpointConverter Ending")
+	writer.WriteString("ending newSandboxWorkloadEndpointConverter ...... ")
+	writer.Flush()
+
 	return c
 }
 
 // VethNameForWorkload returns a deterministic veth name
 // for the given Kubernetes workload (WEP) name and namespace.
 func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podname string) string {
+	// dfy: 日志排错
+	log.Warnf("This field call dfy-func VethNameForWorkload")
 	filePath := "/var/log/dfy-log.txt"
 	file, _ := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
 	writer := bufio.NewWriter(file)
-	writer.WriteString("starting ...... ")
+	writer.WriteString("starting VethNameForWorkload ...... ")
 	writer.Flush()
 	defer file.Close()
 
@@ -100,6 +98,7 @@ func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podnam
 		return ""
 	}
 	sandboxID := podSandboxList.Items[0].Id
+
 	// dfy-log
 	str := fmt.Sprintf("%s%s\n", "sandboxID:", sandboxID)
 	writer.WriteString(str)
@@ -108,20 +107,42 @@ func (wc sandboxWorkloadEndpointConverter) VethNameForWorkload(namespace, podnam
 	writer.Flush()
 
 	prefix := os.Getenv("FELIX_INTERFACEPREFIX")
-	if prefix == "" {
-		// Prefix is not set. Default to "cali"
-		prefix = "cali"
+	if podSandboxList.Items[0].Labels[LabelKeySaiShangIPAMIPSet] != "" {
+		// dfy: saishang 逻辑
+		prefix = "isi"
 	} else {
-		// Prefix is set - use the first value in the list.
-		splits := strings.Split(prefix, ",")
-		prefix = splits[0]
+		// dfy: 原始 calico 逻辑
+		// A SHA1 is always 20 bytes long, and so is sufficient for generating the
+		// veth name and mac addr.
+		h := sha1.New()
+		h.Write([]byte(fmt.Sprintf("%s.%s", namespace, podname)))
+		prefix := os.Getenv("FELIX_INTERFACEPREFIX")
+		if prefix == "" {
+			// Prefix is not set. Default to "cali"
+			prefix = "cali"
+		} else {
+			// Prefix is set - use the first value in the list.
+			splits := strings.Split(prefix, ",")
+			prefix = splits[0]
+		}
+		log.WithField("prefix", prefix).Warnf("Using prefix to create a WorkloadEndpoint veth name")
+		// dfy: 日志排错
+		log.Warnf("This field call dfy-func VethNameForWorkload cali-Ending")
+		str = fmt.Sprintf("%s%s\n", "current prefix: ", prefix)
+		writer.WriteString(str)
+		writer.Flush()
+
+		return fmt.Sprintf("%s%s", prefix, hex.EncodeToString(h.Sum(nil))[:11])
 	}
 	log.WithField("prefix", prefix).Warnf("Using prefix to create a WorkloadEndpoint veth name")
 	result := fmt.Sprintf("%s%s", prefix, sandboxID[:linuxInterfaceNameMaxSize-len(prefix)])
 	log.WithField("vethname", result).Warnf("Using WorkloadEndpoint veth name")
-	str = fmt.Sprintf("%s%s\n", "current prefix", prefix)
+	// dfy: 日志排错
+	log.Warnf("This field call dfy-func VethNameForWorkload isi-Ending")
+	str = fmt.Sprintf("%s%s\n", "current prefix: ", prefix)
 	writer.WriteString(str)
 	writer.Flush()
+
 	return result
 }
 

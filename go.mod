@@ -27,20 +27,23 @@ require (
 	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20200324154536-ceff61240acf
 	google.golang.org/genproto v0.0.0-20191203220235-3fa9dbf08042 // indirect
+	google.golang.org/grpc v1.23.1
 	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
 	gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/validator.v9 v9.27.0
 	gopkg.in/tchap/go-patricia.v2 v2.2.6
 	gopkg.in/yaml.v2 v2.2.8 // indirect
-
 	k8s.io/api v0.17.2
 	k8s.io/apimachinery v0.17.2
 	k8s.io/client-go v0.17.2
 	k8s.io/code-generator v0.17.2
+	k8s.io/cri-api v0.0.0-00010101000000-000000000000
 
 	// k8s.io/utils is not (tag) versioned
 	k8s.io/utils v0.0.0-20191114200735-6ca3b61696b6 // indirect
 )
 
 replace github.com/sirupsen/logrus => github.com/projectcalico/logrus v1.0.4-calico
+
+replace k8s.io/cri-api => k8s.io/cri-api v0.17.2

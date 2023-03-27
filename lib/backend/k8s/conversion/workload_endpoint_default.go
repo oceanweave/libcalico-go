@@ -15,6 +15,7 @@
 package conversion
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
@@ -40,6 +41,15 @@ type defaultWorkloadEndpointConverter struct{}
 func (wc defaultWorkloadEndpointConverter) VethNameForWorkload(namespace, podname string) string {
 	// A SHA1 is always 20 bytes long, and so is sufficient for generating the
 	// veth name and mac addr.
+	// dfy: 日志排错
+	log.Warnf("This field call dfy-func [Default Default Default VethNameForWorkload]")
+	filePath := "/var/log/dfy-log-default.txt"
+	file, _ := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
+	writer := bufio.NewWriter(file)
+	writer.WriteString("starting  [Default Default Default VethNameForWorkload] ...... ")
+	writer.Flush()
+	defer file.Close()
+
 	h := sha1.New()
 	h.Write([]byte(fmt.Sprintf("%s.%s", namespace, podname)))
 	prefix := os.Getenv("FELIX_INTERFACEPREFIX")
